@@ -155,7 +155,7 @@ const newArticles = await db.all<Article>(
 
 end = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
-  headless: "new",
+  headless: false,
   args: ["--no-sandbox"],
   defaultViewport: {
     width: 1400,
