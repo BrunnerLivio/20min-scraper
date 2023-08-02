@@ -23,7 +23,7 @@
     "cheerio": "^1.0.0-rc.12",
     "date-fns": "^2.30.0",
     "promised-sqlite3": "^2.1.0",
-    "puppeteer": "^16.2.0",
+    "puppeteer": "^10.4.0",
     "rss-parser": "^3.13.0",
     "sqlite3": "^5.1.6"
   }
