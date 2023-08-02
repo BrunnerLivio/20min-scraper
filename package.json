@@ -1,0 +1,27 @@
+{
+  "name": "20min-scraper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "tsx ./main.ts",
+    "seed": "tsx ./seed.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/cheerio": "^0.22.31",
+    "@types/puppeteer": "^7.0.4",
+    "tsx": "^3.12.7",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "promised-sqlite3": "^2.1.0",
+    "puppeteer": "^20.9.0",
+    "rss-parser": "^3.13.0",
+    "sqlite3": "^5.1.6"
+  }
+}
