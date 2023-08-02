@@ -5,6 +5,14 @@ It uses SQLite as database
 
 ## Getting Started
 
+**Using a crontab**:
+
+Run `crontab -e`
+
+```bash
+0 */4 * * * <USER> docker run --pull=always  -v "/YOUR_DB_LOCATION/data:/app/data" -t ghcr.io/brunnerlivio/20min-scraper:main
+```
+
 **Node**:
 
 ```bash
