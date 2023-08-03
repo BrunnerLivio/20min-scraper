@@ -86,7 +86,6 @@ async function navigateToCommentPage(page: Page) {
     "//a[contains(., 'Alle Kommentare anzeigen')]"
   );
   if (!allekommentare) {
-    page.close();
     return false;
   }
 
@@ -113,6 +112,7 @@ async function scanArticleComments(article: Article) {
   await autoScroll(page);
 
   const comments = await getCommentsFromPage(page);
+  await page.close();
 
   const res = await Promise.all(
     comments.map(
@@ -120,7 +120,6 @@ async function scanArticleComments(article: Article) {
     )
   );
 
-  await page.close();
   return res;
 }
 
