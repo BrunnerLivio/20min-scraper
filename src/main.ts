@@ -155,7 +155,7 @@ const newArticles = await db.all<Article>(
 
 end = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
-  headless: true,
+  headless: false,
   executablePath: "chromium-browser",
   args: ["--no-sandbox", "--disable-setuid-sandbox"],
   defaultViewport: {
@@ -167,7 +167,9 @@ end();
 
 // ACCEPT COOKIE BANNER
 
+end = createLogTimer("Accepting Cookie Banner");
 await acceptCookieBanner();
+end();
 
 end = createLogTimer("Scanning comments");
 await PromisePool.for(newArticles)
