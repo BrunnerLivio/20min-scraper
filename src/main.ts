@@ -25,7 +25,8 @@ const log = (message: string) =>
 const createLogTimer = (startMessage: string) => {
   log(`┌── ${startMessage}`);
   const start = new Date();
-  return () => {
+
+  const end = () => {
     const end = new Date();
 
     const duration = formatDistance(start, end, {
@@ -38,6 +39,15 @@ const createLogTimer = (startMessage: string) => {
       )}]`
     );
   };
+
+  const step = (message: string, percentage: number) => {
+    log(
+      `├── ${chalk.blue(
+        "🕞 Step [" + Math.round(percentage) + "%]"
+      )}: ${message}`
+    );
+  };
+  return { end, step };
 };
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -139,7 +149,7 @@ const result = await parser.parseURL(
 );
 
 /// SYNC ARTICLES
-let end = createLogTimer("Syncing articles");
+const syncArticles = createLogTimer("Syncing articles");
 
 await Promise.all(
   result.items.map(async (item) => {
@@ -147,15 +157,15 @@ await Promise.all(
   })
 );
 
-end();
+syncArticles.end();
 
 const newArticles = await db.all<Article>(
   "SELECT rowid AS id, * FROM articles WHERE pubDate > datetime('now', '-3 days')"
 );
 
-end = createLogTimer("Starting chrome");
+const startingChrome = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
-  headless: false,
+  headless: true,
   executablePath: "chromium-browser",
   args: ["--no-sandbox", "--disable-setuid-sandbox"],
   defaultViewport: {
@@ -163,22 +173,23 @@ const browser = await puppeteer.launch({
     height: 6000,
   },
 });
-end();
+startingChrome.end();
 
-// ACCEPT COOKIE BANNER
-
-end = createLogTimer("Accepting Cookie Banner");
+const acceptingCookeBanner = createLogTimer("Accepting Cookie Banner");
 await acceptCookieBanner();
-end();
+acceptingCookeBanner.end();
 
-end = createLogTimer("Scanning comments");
+const scanningComments = createLogTimer("Scanning comments");
 await PromisePool.for(newArticles)
   .withConcurrency(1)
+  .onTaskFinished(async (article, pool) => {
+    scanningComments.step(article.title, pool.processedPercentage());
+  })
   .process(async (article) => {
     return await scanArticleComments(article);
   });
 
-end();
+scanningComments.end();
 
 const scanEndedTime = new Date();
 
