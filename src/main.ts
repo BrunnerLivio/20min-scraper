@@ -171,7 +171,7 @@ await acceptCookieBanner();
 
 end = createLogTimer("Scanning comments");
 await PromisePool.for(newArticles)
-  .withConcurrency(5)
+  .withConcurrency(1)
   .process(async (article) => {
     return await scanArticleComments(article);
   });
