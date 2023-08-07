@@ -145,7 +145,8 @@ async function acceptCookieBanner() {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-const { values: args } = parseArgs({
+const { values: args, positionals } = parseArgs({
+  allowPositionals: true,
   options: {
     parallel: {
       type: "string",
