@@ -8,6 +8,7 @@
     "20min-scraper": "./dist/main.js"
   },
   "scripts": {
+    "semantic-release": "semantic-release",
     "start": "tsx ./src/main.ts",
     "seed": "tsx ./src/seed.ts",
     "build": "tsc && cp -rf src/parseComment.js dist/parseComment.js"
@@ -19,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "semantic-release": "^21.0.7",
     "semantic-release-replace-plugin": "^1.2.7",
     "tsx": "^3.12.7",
     "typescript": "^5.1.6"
