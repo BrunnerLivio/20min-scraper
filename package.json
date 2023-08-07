@@ -1,12 +1,19 @@
 {
-  "name": "20min-scraper",
+  "name": "@brunnerlivio/20min-scraper",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "type": "module",
+  "bin": {
+    "20min-scraper": "./dist/main.js"
+  },
   "scripts": {
     "start": "tsx ./src/main.ts",
-    "seed": "tsx ./src/seed.ts"
+    "seed": "tsx ./src/seed.ts",
+    "build": "tsc && cp -rf src/parseComment.js dist/parseComment.js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [],
   "author": "",

@@ -51,5 +51,5 @@ async function parseComment(comment) {
     ...reactions,
   };
 }
-
+// @ts-ignore
 window.parseComment = parseComment;

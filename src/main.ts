@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import puppeteer, { Page } from "puppeteer";
 import Parser from "rss-parser";
 import { TwentyMinFeed } from "./RSSFeed.js";
@@ -14,9 +15,10 @@ import {
   insertComment,
 } from "./comment/repository.js";
 import { Comment } from "./comment/comment.js";
-import { join } from "path";
-import * as url from "url";
-import formatDistance from "date-fns/formatDistance";
+import { join } from "node:path";
+import * as url from "node:url";
+import { parseArgs } from "node:util";
+import { formatDistance } from "date-fns";
 import chalk from "chalk";
 
 const log = (message: string) =>
@@ -47,7 +49,12 @@ const createLogTimer = (startMessage: string) => {
       )}: ${message}`
     );
   };
-  return { end, step };
+
+  const error = (message: string) => {
+    log(`├── ${chalk.red("❌ Error")}: ${message}`);
+  };
+
+  return { end, step, error };
 };
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +145,25 @@ async function acceptCookieBanner() {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
+const { values: args } = parseArgs({
+  options: {
+    parallel: {
+      type: "string",
+      short: "p",
+      default: "1",
+    },
+    ["no-headless"]: {
+      type: "boolean",
+      short: "n",
+      default: false,
+    },
+  },
+});
+
+const parallel = parseInt(args.parallel);
+
+/////////////////////////////////////////////////////////////////////////////////////
+
 await seed();
 log("Starting scan");
 const scanStartedTime = new Date();
@@ -164,8 +190,8 @@ const newArticles = await db.all<Article>(
 
 const startingChrome = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
-  headless: true,
-  executablePath: "chromium-browser",
+  headless: !args["no-headless"],
+  // executablePath: "chromium-browser",
   args: ["--no-sandbox", "--disable-setuid-sandbox"],
   defaultViewport: {
     width: 1400,
@@ -180,9 +206,13 @@ acceptingCookeBanner.end();
 
 const scanningComments = createLogTimer("Scanning comments");
 await PromisePool.for(newArticles)
-  .withConcurrency(1)
+  .withConcurrency(parallel)
   .onTaskFinished(async (article, pool) => {
     scanningComments.step(article.title, pool.processedPercentage());
+  })
+  .handleError(async (error, article) => {
+    scanningComments.error(`Error while scanning ${article.title}`);
+    console.error(error);
   })
   .process(async (article) => {
     return await scanArticleComments(article);

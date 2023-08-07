@@ -2,3 +2,5 @@ node_modules
 db.sqlite
 db.sqlite-journal
 comments.json
+dist
+*.log
