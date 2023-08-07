@@ -12,5 +12,30 @@
       "name": "alpha",
       "prerelease": true
     }
+  ],
+  "plugins": [
+    [
+      "semantic-release-replace-plugin",
+      {
+        "replacements": [
+          {
+            "files": [
+              "dist/main.js"
+            ],
+            "from": "__VERSION__",
+            "to":  "${nextRelease.version}",
+            "results": [
+              {
+                "file": "dist/main.js",
+                "hasChanged": true,
+                "numMatches": 1,
+                "numReplacements": 1
+              }
+            ],
+            "countMatches": true
+          }
+        ]
+      }
+    ]
   ]
 }

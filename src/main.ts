@@ -163,6 +163,18 @@ const parallel = parseInt(args.parallel);
 
 /////////////////////////////////////////////////////////////////////////////////////
 
+console.log(`
+==========================================
+              20 MIN SCANNER              
+
+VERSION: __VERSION__
+PARALLEL: ${parallel}
+NO HEADLESS: ${args["no-headless"]}
+
+==========================================
+
+`)
+
 await seed();
 log("Starting scan");
 const scanStartedTime = new Date();
