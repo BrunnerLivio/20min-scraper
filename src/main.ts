@@ -105,9 +105,7 @@ async function navigateToCommentPage(page: Page) {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-async function scanArticleComments(article: Article) {
-  const page = await browser.newPage();
-
+async function scanArticleComments(page: Page, article: Article) {
   await page.goto(article.link);
   const hasComments = await navigateToCommentPage(page);
 
@@ -145,7 +143,7 @@ async function acceptCookieBanner() {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-const { values: args, positionals } = parseArgs({
+const { values: args } = parseArgs({
   allowPositionals: true,
   options: {
     parallel: {
@@ -216,7 +214,13 @@ await PromisePool.for(newArticles)
     console.error(error);
   })
   .process(async (article) => {
-    return await scanArticleComments(article);
+    const page = await browser.newPage();
+    try {
+      return await scanArticleComments(page, article);
+    } catch (err) {
+      await page.close();
+      throw err;
+    }
   });
 
 scanningComments.end();
@@ -243,3 +247,9 @@ CREATES:
 
 await browser.close();
 await db.close();
+
+process.on("uncaughtException", async (error, source) => {
+  await browser.close();
+  await db.close();
+  console.error(error);
+});
