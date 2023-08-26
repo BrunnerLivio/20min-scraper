@@ -2,7 +2,15 @@ import { db } from "./db.js";
 
 export async function seed() {
   await db.run(
-    "CREATE TABLE IF NOT EXISTS articles (title TEXT, link TEXT, pubDate TEXT, content TEXT, contentSnippet TEXT, guid TEXT, isoDate TEXT)"
+    "CREATE TABLE IF NOT EXISTS articles (" +
+      "title TEXT, " +
+      "link TEXT, " +
+      "pubDate TEXT, " +
+      "content TEXT, " +
+      "contentSnippet TEXT, " +
+      "guid TEXT, " +
+      "isoDate TEXT" +
+      ")"
   );
 
   await db.run(
