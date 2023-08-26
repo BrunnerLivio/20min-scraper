@@ -132,6 +132,7 @@ async function scanArticleComments(page: Page, article: Article) {
 
 async function acceptCookieBanner() {
   const page = await browser.newPage();
+  await page.setDefaultNavigationTimeout(500_000);
   await page.goto("https://20min.ch");
 
   await page
@@ -227,6 +228,7 @@ await PromisePool.for(newArticles)
   })
   .process(async (article) => {
     const page = await browser.newPage();
+    await page.setDefaultNavigationTimeout(500_000);
     try {
       return await scanArticleComments(page, article);
     } catch (err) {
