@@ -4,3 +4,4 @@ db.sqlite-journal
 comments.json
 dist
 *.log
+crontab.sh

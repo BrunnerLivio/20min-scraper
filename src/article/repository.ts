@@ -1,5 +1,6 @@
 import { db } from "../db/db.js";
 import { RSSFeedArticle } from "../RSSFeed.js";
+import { Article } from "./article.js";
 
 let UPDATED_ARTICLES = 0;
 let CREATED_ARTICLES = 0;
@@ -31,6 +32,24 @@ export async function insertArticle(item: RSSFeedArticle) {
     );
     CREATED_ARTICLES++;
   }
+}
+
+export async function updateContentArticle(item: RSSFeedArticle) {
+  const exists = await articleExists(item.guid);
+  if (exists) {
+    await db.run("UPDATE articles SET content = ?, WHERE guid = ?", [
+      item.content,
+      item.guid,
+    ]);
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
+export async function getRecentArticles() {
+  return await db.all<Article>(
+    "SELECT rowid AS id, * FROM articles WHERE pubDate > datetime('now', '-3 days')"
+  );
 }
 
 export const getUpdatedArticles = () => UPDATED_ARTICLES;

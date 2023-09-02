@@ -3,6 +3,7 @@ import { db } from "./db.js";
 export async function seed() {
   await db.run(
     "CREATE TABLE IF NOT EXISTS articles (" +
+      "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "title TEXT, " +
       "link TEXT, " +
       "pubDate TEXT, " +
@@ -15,6 +16,7 @@ export async function seed() {
 
   await db.run(
     "CREATE TABLE IF NOT EXISTS comments (" +
+      "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
       "author TEXT, " +
       "createdAt TEXT, " +
       "content TEXT, " +
@@ -26,8 +28,8 @@ export async function seed() {
       "reactions_so_nicht INTEGER, " +
       "articleId INTEGER, " +
       "parentId INTEGER, " +
-      "FOREIGN KEY(articleId) REFERENCES articles(rowid), " +
-      "FOREIGN KEY(parentId) REFERENCES comments(rowid)" +
+      "FOREIGN KEY(articleId) REFERENCES articles(id), " +
+      "FOREIGN KEY(parentId) REFERENCES comments(id)" +
       ")"
   );
 }

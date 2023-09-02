@@ -1,72 +1,62 @@
 #!/usr/bin/env node
+import { join } from "node:path";
+import * as url from "node:url";
+import { parseArgs } from "node:util";
+
 import puppeteer, { Page } from "puppeteer";
 import Parser from "rss-parser";
-import { TwentyMinFeed } from "./RSSFeed.js";
+import { PromisePool } from "@supercharge/promise-pool";
+import axios from "axios";
+import { formatDistance } from "date-fns";
+import * as cheerio from "cheerio";
+
+import { RSSFeedArticle, TwentyMinFeed } from "./RSSFeed.js";
 import { db } from "./db/db.js";
 import { seed } from "./db/seed.js";
 import { readFile } from "fs/promises";
 import { autoScroll } from "./helpers.js";
 import { Article } from "./article/article.js";
-import { PromisePool } from "@supercharge/promise-pool";
-import { getUpdatedArticles, insertArticle } from "./article/repository.js";
+import {
+  getRecentArticles,
+  getUpdatedArticles,
+  insertArticle,
+} from "./article/repository.js";
 import {
   getCreatedComments,
   getUpdatedComments,
   insertComment,
 } from "./comment/repository.js";
 import { Comment } from "./comment/comment.js";
-import { join } from "node:path";
-import * as url from "node:url";
-import { parseArgs } from "node:util";
-import { formatDistance } from "date-fns";
-import chalk from "chalk";
+import { NodeHtmlMarkdown } from "node-html-markdown";
+import { log, createLogTimer } from "./utils/logger.js";
 
-const log = (message: string) =>
-  console.log(`[${chalk.magenta(new Date().toISOString())}] ${message}`);
-
-const createLogTimer = (startMessage: string) => {
-  log(`┌── ${startMessage}`);
-  const start = new Date();
-
-  const end = () => {
-    const end = new Date();
-
-    const duration = formatDistance(start, end, {
-      includeSeconds: true,
-    });
-
-    log(
-      `└── ${chalk.green("✅ Finished")}: ${startMessage} [${chalk.blue(
-        "Δ " + duration
-      )}]`
-    );
-  };
-
-  const step = (message: string, percentage: number) => {
-    log(
-      `├── ${chalk.blue(
-        "🕞 Step [" + Math.round(percentage) + "%]"
-      )}: ${message}`
-    );
-  };
-
-  const error = (message: string) => {
-    log(`├── ${chalk.red("❌ Error")}: ${message}`);
-  };
-
-  return { end, step, error };
-};
-
-/////////////////////////////////////////////////////////////////////////////////////
+const TIMEOUT = parseInt(process.env.TWENTY_MIN_TIMEOUT) || 500_000;
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
-
-/////////////////////////////////////////////////////////////////////////////////////
-
 const parseCommentFn = await readFile(
   join(__dirname, "./parseComment.js"),
   "utf-8"
 );
+
+const { values: args } = parseArgs({
+  allowPositionals: true,
+  options: {
+    parallel: {
+      type: "string",
+      short: "p",
+      default: "1",
+    },
+    ["no-headless"]: {
+      type: "boolean",
+      short: "n",
+      default: false,
+    },
+  },
+});
+
+const parallel = parseInt(args.parallel);
+
+/////////////////////////////////////////////////////////////////////////////////////
 
 async function getCommentsFromPage(page: Page) {
   return await page.evaluate(async (parseCommentFn: string) => {
@@ -130,9 +120,32 @@ async function scanArticleComments(page: Page, article: Article) {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
+async function getArticleContent(article: Article) {
+  if (!article.link) {
+    return;
+  }
+  const html = await axios.get(article.link).then((res) => res.data);
+  const $ = cheerio.load(html);
+
+  if ($('[class*="Article_body"]').length === 0) {
+    return;
+  }
+  $('[type="typeInfoboxSummary"]').remove();
+  $('[class*="Article_elementSlideshow"]').remove();
+  const text = NodeHtmlMarkdown.translate(
+    $('[class*="Article_body"]').first().html()
+  );
+  await db.run("UPDATE articles SET content = ? WHERE guid = ?", [
+    text,
+    article.guid,
+  ]);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+
 async function acceptCookieBanner() {
   const page = await browser.newPage();
-  await page.setDefaultNavigationTimeout(500_000);
+  page.setDefaultNavigationTimeout(TIMEOUT);
   await page.goto("https://20min.ch");
 
   await page
@@ -144,26 +157,6 @@ async function acceptCookieBanner() {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-const { values: args } = parseArgs({
-  allowPositionals: true,
-  options: {
-    parallel: {
-      type: "string",
-      short: "p",
-      default: "1",
-    },
-    ["no-headless"]: {
-      type: "boolean",
-      short: "n",
-      default: false,
-    },
-  },
-});
-
-const parallel = parseInt(args.parallel);
-
-/////////////////////////////////////////////////////////////////////////////////////
-
 console.log(`
 ==========================================
               20 MIN SCANNER              
@@ -171,10 +164,11 @@ console.log(`
 VERSION: __VERSION__
 PARALLEL: ${parallel}
 NO HEADLESS: ${args["no-headless"]}
+TIMEOUT (ms): ${TIMEOUT}
 
 ==========================================
 
-`)
+`);
 
 await seed();
 log("Starting scan");
@@ -187,18 +181,25 @@ const result = await parser.parseURL(
 
 /// SYNC ARTICLES
 const syncArticles = createLogTimer("Syncing articles");
-
-await Promise.all(
-  result.items.map(async (item) => {
-    await insertArticle(item);
-  })
-);
-
+await Promise.all(result.items.map(async (item) => await insertArticle(item)));
 syncArticles.end();
+const newArticles = await getRecentArticles();
 
-const newArticles = await db.all<Article>(
-  "SELECT rowid AS id, * FROM articles WHERE pubDate > datetime('now', '-3 days')"
-);
+// SCRAPING ARTICLES CONTENT
+const scrapingArticles = createLogTimer("Scraping articles content");
+
+await PromisePool.for(newArticles)
+  .withConcurrency(parallel)
+  .onTaskFinished(async (item, pool) => {
+    scrapingArticles.step(item.link, pool.processedPercentage());
+  })
+  .handleError(async (error, item) => {
+    scrapingArticles.error(`Error while scraping ${item.title}`);
+    console.error(error);
+  })
+  .process((item) => getArticleContent(item));
+
+// STARTING CHROME
 
 const startingChrome = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
@@ -228,7 +229,7 @@ await PromisePool.for(newArticles)
   })
   .process(async (article) => {
     const page = await browser.newPage();
-    await page.setDefaultNavigationTimeout(500_000);
+    page.setDefaultNavigationTimeout(TIMEOUT);
     try {
       return await scanArticleComments(page, article);
     } catch (err) {
