@@ -10,7 +10,7 @@ import axios from "axios";
 import { formatDistance } from "date-fns";
 import * as cheerio from "cheerio";
 
-import { RSSFeedArticle, TwentyMinFeed } from "./RSSFeed.js";
+import { TwentyMinFeed } from "./RSSFeed.js";
 import { db } from "./db/db.js";
 import { seed } from "./db/seed.js";
 import { readFile } from "fs/promises";
@@ -31,6 +31,7 @@ import { NodeHtmlMarkdown } from "node-html-markdown";
 import { log, createLogTimer } from "./utils/logger.js";
 
 const TIMEOUT = parseInt(process.env.TWENTY_MIN_TIMEOUT) || 500_000;
+const CHROME_EXECUTABLE_PATH = process.env.TWENTY_MIN_CHROME_EXECUTABLE_PATH;
 
 const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
 const parseCommentFn = await readFile(
@@ -159,7 +160,7 @@ async function acceptCookieBanner() {
 
 console.log(`
 ==========================================
-              20 MIN SCANNER              
+              20 MIN SCANNER
 
 VERSION: __VERSION__
 PARALLEL: ${parallel}
@@ -204,7 +205,7 @@ await PromisePool.for(newArticles)
 const startingChrome = createLogTimer("Starting chrome");
 const browser = await puppeteer.launch({
   headless: !args["no-headless"],
-  // executablePath: "chromium-browser",
+  executablePath: CHROME_EXECUTABLE_PATH,
   args: ["--no-sandbox", "--disable-setuid-sandbox"],
   defaultViewport: {
     width: 1400,
@@ -243,7 +244,7 @@ scanningComments.end();
 const scanEndedTime = new Date();
 
 console.log(`
-RESULT 
+RESULT
 ===================================
 SCAN STARTED: ${scanStartedTime.toISOString()}
 SCAN ENDED: ${scanEndedTime.toISOString()}
