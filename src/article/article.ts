@@ -7,5 +7,5 @@ export interface Article {
   contentSnippet: string;
   guid: string;
   isoDate: string;
+  author: string;
 }
-

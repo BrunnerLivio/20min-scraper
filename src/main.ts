@@ -1,21 +1,12 @@
 #!/usr/bin/env node
-import { join } from "node:path";
-import * as url from "node:url";
 import { parseArgs } from "node:util";
-
-import puppeteer, { Page } from "puppeteer";
+import puppeteer from "puppeteer";
 import Parser from "rss-parser";
 import { PromisePool } from "@supercharge/promise-pool";
-import axios from "axios";
 import { formatDistance } from "date-fns";
-import * as cheerio from "cheerio";
-
 import { TwentyMinFeed } from "./RSSFeed.js";
 import { db } from "./db/db.js";
 import { seed } from "./db/seed.js";
-import { readFile } from "fs/promises";
-import { autoScroll } from "./helpers.js";
-import { Article } from "./article/article.js";
 import {
   getRecentArticles,
   getUpdatedArticles,
@@ -24,20 +15,13 @@ import {
 import {
   getCreatedComments,
   getUpdatedComments,
-  insertComment,
 } from "./comment/repository.js";
-import { Comment } from "./comment/comment.js";
-import { NodeHtmlMarkdown } from "node-html-markdown";
 import { log, createLogTimer } from "./utils/logger.js";
+import scrapeArticle from "./article/scrape.js";
+import scrapeComment from "./comment/scrape.js";
 
 const TIMEOUT = parseInt(process.env.TWENTY_MIN_TIMEOUT) || 500_000;
 const CHROME_EXECUTABLE_PATH = process.env.TWENTY_MIN_CHROME_EXECUTABLE_PATH;
-
-const __dirname = url.fileURLToPath(new URL(".", import.meta.url));
-const parseCommentFn = await readFile(
-  join(__dirname, "./parseComment.js"),
-  "utf-8"
-);
 
 const { values: args } = parseArgs({
   allowPositionals: true,
@@ -56,123 +40,6 @@ const { values: args } = parseArgs({
 });
 
 const parallel = parseInt(args.parallel);
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-async function getCommentsFromPage(page: Page) {
-  return await page.evaluate(async (parseCommentFn: string) => {
-    const script = document.createElement("script");
-    const content = document.createTextNode(parseCommentFn);
-    script.appendChild(content);
-    document.body.appendChild(script);
-
-    const comments = Array.from(
-      document.querySelectorAll("#commentSection > div > article")
-    );
-    const res = await Promise.all(
-      // @ts-ignore
-      comments.map(async (comment) => await parseComment(comment))
-    );
-    return res as Comment[];
-  }, parseCommentFn);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-async function navigateToCommentPage(page: Page) {
-  const [allekommentare] = await page.$x(
-    "//a[contains(., 'Alle Kommentare anzeigen')]"
-  );
-  if (!allekommentare) {
-    return false;
-  }
-
-  const href = await allekommentare.evaluate((el) =>
-    (el as any).getAttribute("href")
-  );
-  await page.goto(`https://20min.ch${href}`);
-  return true;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-async function scanArticleComments(page: Page, article: Article) {
-  await page.goto(article.link);
-  const hasComments = await navigateToCommentPage(page);
-
-  if (!hasComments) {
-    await page.close();
-    return;
-  }
-
-  await autoScroll(page);
-
-  const comments = await getCommentsFromPage(page);
-  await page.close();
-
-  const res = await Promise.all(
-    comments.map(
-      async (comment) => await insertComment(article.id, null, comment)
-    )
-  );
-
-  return res;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////
-
-async function getBreadcrumb($: cheerio.CheerioAPI, article: Article) {
-  const scripts = $('script[type="application/ld+json"]');
-  if (scripts.length === 0) {
-    return;
-  }
-
-  const script = scripts
-    .map((_, el) => $(el))
-    .get()
-    .find((el) => el.html().includes("BreadcrumbList"));
-
-  const breadcrumbs = JSON.parse(script.html() || "").itemListElement;
-  if (!breadcrumbs) {
-    return;
-  }
-
-  const category = breadcrumbs
-    .slice(0, breadcrumbs.length - 1)
-    .map((breadcrumb: any) => breadcrumb.item.name)
-    .join(" > ");
-
-  await db.run("UPDATE articles SET category = ? WHERE guid = ?", [
-    category,
-    article.guid,
-  ]);
-}
-
-async function getArticleContent($: cheerio.CheerioAPI, article: Article) {
-  if ($('[class*="Article_body"]').length === 0) {
-    return;
-  }
-
-  $('[type="typeInfoboxSummary"]').remove();
-  $('[class*="Article_elementSlideshow"]').remove();
-  const text = NodeHtmlMarkdown.translate(
-    $('[class*="Article_body"]').first().html()
-  );
-  await db.run("UPDATE articles SET content = ? WHERE guid = ?", [
-    text,
-    article.guid,
-  ]);
-}
-
-async function getArticleData(article: Article) {
-  if (!article.link) {
-    return;
-  }
-
-  const html = await axios.get(article.link).then((res) => res.data);
-  const $ = cheerio.load(html);
-  await Promise.all([getBreadcrumb($, article), getArticleContent($, article)]);
-}
 
 /////////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +97,9 @@ await PromisePool.for(newArticles)
     scrapingArticles.error(`Error while scraping ${item.title}`);
     console.error(error);
   })
-  .process((item) => getArticleData(item));
+  .process((item) => scrapeArticle(item));
+
+scrapingArticles.end();
 
 // STARTING CHROME
 
@@ -264,7 +133,7 @@ await PromisePool.for(newArticles)
     const page = await browser.newPage();
     page.setDefaultNavigationTimeout(TIMEOUT);
     try {
-      return await scanArticleComments(page, article);
+      return await scrapeComment(page, article);
     } catch (err) {
       await page.close();
       throw err;
