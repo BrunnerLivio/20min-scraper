@@ -121,16 +121,38 @@ async function scanArticleComments(page: Page, article: Article) {
 
 /////////////////////////////////////////////////////////////////////////////////////
 
-async function getArticleContent(article: Article) {
-  if (!article.link) {
+async function getBreadcrumb($: cheerio.CheerioAPI, article: Article) {
+  const scripts = $('script[type="application/ld+json"]');
+  if (scripts.length === 0) {
     return;
   }
-  const html = await axios.get(article.link).then((res) => res.data);
-  const $ = cheerio.load(html);
 
+  const script = scripts
+    .map((_, el) => $(el))
+    .get()
+    .find((el) => el.html().includes("BreadcrumbList"));
+
+  const breadcrumbs = JSON.parse(script.html() || "").itemListElement;
+  if (!breadcrumbs) {
+    return;
+  }
+
+  const category = breadcrumbs
+    .slice(0, breadcrumbs.length - 1)
+    .map((breadcrumb: any) => breadcrumb.item.name)
+    .join(" > ");
+
+  await db.run("UPDATE articles SET category = ? WHERE guid = ?", [
+    category,
+    article.guid,
+  ]);
+}
+
+async function getArticleContent($: cheerio.CheerioAPI, article: Article) {
   if ($('[class*="Article_body"]').length === 0) {
     return;
   }
+
   $('[type="typeInfoboxSummary"]').remove();
   $('[class*="Article_elementSlideshow"]').remove();
   const text = NodeHtmlMarkdown.translate(
@@ -140,6 +162,16 @@ async function getArticleContent(article: Article) {
     text,
     article.guid,
   ]);
+}
+
+async function getArticleData(article: Article) {
+  if (!article.link) {
+    return;
+  }
+
+  const html = await axios.get(article.link).then((res) => res.data);
+  const $ = cheerio.load(html);
+  await Promise.all([getBreadcrumb($, article), getArticleContent($, article)]);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +230,7 @@ await PromisePool.for(newArticles)
     scrapingArticles.error(`Error while scraping ${item.title}`);
     console.error(error);
   })
-  .process((item) => getArticleContent(item));
+  .process((item) => getArticleData(item));
 
 // STARTING CHROME
 

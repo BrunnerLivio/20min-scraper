@@ -10,9 +10,11 @@ export async function seed() {
       "content TEXT, " +
       "contentSnippet TEXT, " +
       "guid TEXT, " +
+      "category TEXT, " +
       "isoDate TEXT" +
       ")"
   );
+
 
   await db.run(
     "CREATE TABLE IF NOT EXISTS comments (" +
