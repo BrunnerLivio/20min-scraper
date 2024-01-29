@@ -19,6 +19,7 @@ import {
 import { log, createLogTimer } from "./utils/logger.js";
 import scrapeArticle from "./article/scrape.js";
 import scrapeComment from "./comment/scrape.js";
+import { getCreatedAuthors, getUpdatedAuthors } from "./author/repository.js";
 
 const TIMEOUT = parseInt(process.env.TWENTY_MIN_TIMEOUT) || 500_000;
 const CHROME_EXECUTABLE_PATH = process.env.TWENTY_MIN_CHROME_EXECUTABLE_PATH;
@@ -156,10 +157,12 @@ ELAPSED: ${formatDistance(scanEndedTime, scanStartedTime, {
 UPDATES:
   Articles: ${getUpdatedArticles()}
   Comments: ${getUpdatedComments()}
+  Authors: ${getUpdatedAuthors()}
 
 CREATES:
   Articles: ${getUpdatedArticles()}
   Comments: ${getCreatedComments()}
+  Authors: ${getCreatedAuthors()}
 `);
 
 await browser.close();

@@ -3,6 +3,7 @@ import { NodeHtmlMarkdown } from "node-html-markdown";
 import { db } from "../db/db.js";
 import { Article } from "./article.js";
 import * as cheerio from "cheerio";
+import { insertAuthor } from "../author/repository.js";
 
 async function getBreadcrumb($: cheerio.CheerioAPI, article: Article) {
   const scripts = $('script[type="application/ld+json"]');
@@ -48,15 +49,30 @@ async function getArticleContent($: cheerio.CheerioAPI, article: Article) {
 }
 
 async function getArticleAuthor($: cheerio.CheerioAPI, article: Article) {
-  const author = $('[class*="Article_elementAuthors"]')
-    .first()
-    .text()
-    .replace("von", "");
+  let authors = [];
+  if ($('[class*="Article_elementAuthors"]').first().length) {
+    authors = $('[class*="Article_elementAuthors"]')
+      .first()
+      .text()
+      .replace("von", "")
+      .split(",")
+      .map((author) => author.trim())
+      .filter((author) => author !== "");
+  }
 
-  await db.run("UPDATE articles SET author = ? WHERE guid = ?", [
-    author,
-    article.guid,
-  ]);
+  if ($('[class*="VideoContent_lead"]').first().length) {
+    authors = $('[class*="VideoContent_lead"]')
+      .first()
+      .next()
+      .text()
+      .replace("von", "")
+      .split(",")
+      .map((author) => author.trim());
+  }
+
+  for (const author of authors) {
+    await insertAuthor(author, article.id);
+  }
 }
 
 async function scrape(article: Article) {
